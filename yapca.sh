@@ -172,7 +172,7 @@ assign_positional_args()
 ##
 ## Create the root pair
 ##
-function yapca_initializeRoot()
+function yapca_initialize_root()
 {
 	#
 	# Prepare the directory structure
@@ -264,7 +264,7 @@ function yapca_initializeRoot()
 ##
 ## Create the intermediate pair
 ##
-function yapca_initializeIntermediate()
+function yapca_initialize_intermediate()
 {
 	# Prepare the directory
 	a_dir=( \
@@ -395,11 +395,11 @@ function yapca_initializeIntermediate()
 	chmod 444 "${_intermediate_dir}/certs/ca-chain.cert.pem"
 }
 
-function yapca_initializeCA()
+function yapca_initialize_ca()
 {
 	# create the root and intermediate certs
-	yapca_initializeRoot
-	yapca_initializeIntermediate
+	yapca_initialize_root
+	yapca_initialize_intermediate
 	# remove tempdir
 	rm -rf "${_arg_tmp}"
 	rm -f "${_ca_dir}/${SCRIPTNAME}.passin"
@@ -523,7 +523,7 @@ _intermediate_dir="${_intermediate_dir%/}"
 umask 0077
 case "${_arg_positional}" in
 	init)
-		yapca_initializeCA
+		yapca_initialize_ca
 		;;
 	*)
 		printf "FATAL ERROR: Unknown command."
