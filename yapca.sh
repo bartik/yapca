@@ -391,8 +391,8 @@ function yapca_initialize_intermediate()
 	# Create the certificate chain file
 	#
 	cat "${_intermediate_dir}/certs/${_intermediate_crt}" \
-		"${_ca_dir}/certs/${_ca_crt}" > "${_intermediate_dir}/certs/ca-chain.cert.pem"
-	chmod 444 "${_intermediate_dir}/certs/ca-chain.cert.pem"
+		"${_ca_dir}/certs/${_ca_crt}" > "${_intermediate_dir}/certs/${_ca_chain}"
+	chmod 444 "${_intermediate_dir}/certs/${_ca_chain}"
 }
 
 function yapca_initialize_ca()
@@ -408,6 +408,27 @@ function yapca_initialize_ca()
 	rm -f "${_intermediate_dir}/${SCRIPTNAME}.passin"
 	rm -f "${_intermediate_dir}/${SCRIPTNAME}.passout"
 	rm -f "${_intermediate_dir}/${SCRIPTNAME}.passcsr"
+}
+
+##
+## Generate server key withoud password
+##
+function yapca_server_key()
+{
+	l_server_key=$1
+	l_server_keylength=$2
+	a_cmd=( \
+	"genrsa" \
+	"-config" \
+		"${_ca_dir}/openssl.cnf" \
+	"-out" \
+		"${_intermediate_dir}/private/${l_server_key}" \
+	)
+	if [[ "${l_server_keylength}" != "" ]]; then
+	a_cmd+=( "${l_server_keylength}" )
+	fi
+	"${_arg_openssl}" "${a_cmd[@]}"
+	chmod 400 "${_intermediate_dir}/private/${l_server_key}"
 }
 
 # THE DEFAULTS INITIALIZATION - POSITIONALS
@@ -511,14 +532,40 @@ _ca_keylength="${_ca_keylength:=4096}"
 _ca_validity="${_ca_validity:=36500}"
 _intermediate_keylength="${_intermediate_keylength:=2048}"
 _intermediate_validity="${_intermediate_validity:=3650}"
-if [[ "$_ca_dir" != '/'* ]]; then 
+if [[ "${_ca_dir}" != '/'* ]]; then 
 	_ca_dir="${_arg_path}${_ca_dir}"
 fi
-if [[ "$_intermediate_dir" != '/'* ]]; then 
+if [[ "${_intermediate_dir}" != '/'* ]]; then 
 	_intermediate_dir="${_arg_path}${_intermediate_dir}"
 fi
 _ca_dir="${_ca_dir%/}"
 _intermediate_dir="${_intermediate_dir%/}"
+
+# decrypt passwords if there is master pass file
+# create the masterpass file beforehand and then
+# to encrypt the password use
+# echo "password" | openssl enc -aes256 -pbkdf2 -base64 -pass file:${_ca_dir}/.${SCRIPTNAME}.masterpass
+# paste the resulting string into the ini file
+# replace any occurences of = (equal) sign with
+# its octal code. For "password" it would be
+# U2FsdGVkX19AyHLusY4808Kwx4pnJ6nU5e96aUVvPzs\075
+if find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 0400; then
+	a_cmd=( \
+		"enc" \
+		"-aes-256-cbc" \
+		"-pbkdf2" \
+		"-base64" \
+		"-d" \
+		"-pass" \
+		"file:${_ca_dir}/.${SCRIPTNAME}.masterpass"
+	)
+	_ca_passin="$(echo -e "${_ca_passin}"|"${_arg_openssl}" "${a_cmd[@]}")"
+	_ca_passout="$(echo -e "${_ca_passout}"|"${_arg_openssl}" "${a_cmd[@]}")"
+	_ca_passcsr="$(echo -e "${_ca_passcsr}"|"${_arg_openssl}" "${a_cmd[@]}")"
+	_intermediate_passin="$(echo -e "${_intermediate_passin}"|"${_arg_openssl}" "${a_cmd[@]}")"
+	_intermediate_passout="$(echo -e "${_intermediate_passout}"|"${_arg_openssl}" "${a_cmd[@]}")"
+	_intermediate_passcsr="$(echo -e "${_intermediate_passcsr}"|"${_arg_openssl}" "${a_cmd[@]}")"
+fi
 
 umask 0077
 case "${_arg_positional}" in
