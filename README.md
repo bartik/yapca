@@ -1,6 +1,9 @@
 # yapca
 Yet Another Private CA
 
+./yapca.sh encini
+
+
 ./yapca.sh init
 
 
