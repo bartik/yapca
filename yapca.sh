@@ -33,6 +33,9 @@ ERR_ENCRYPT_INI=102
 ERR_READ_INI=103
 ERR_UNKNOWN_COMMAND=104
 
+# cert related constants
+SERVER_KEYLENGTH=2048
+
 die() {
   local _ret="${2:-1}"
   test "${_PRINT_HELP:-no}" = yes && print_help >&2
@@ -419,8 +422,8 @@ function yapca_initialize_ca() {
 ## Generate server key withoud password
 ##
 function yapca_server_key() {
-  l_server_key=$1
-  l_server_keylength=$2
+  l_server_key="${1}"
+  l_server_keylength="${2}"
   a_cmd=(
     "genrsa"
     "-config"
@@ -430,16 +433,22 @@ function yapca_server_key() {
   )
   if [[ "${l_server_keylength}" != "" ]]; then
     a_cmd+=("${l_server_keylength}")
+	else
+    a_cmd+=("${SERVER_KEYLENGTH}")
   fi
   "${_arg_openssl}" "${a_cmd[@]}"
   chmod 400 "${_intermediate_dir}/private/${l_server_key}"
+}
+
+function yapca_server_csr() {
+  l_server_key="${1}"
 }
 
 ##
 ## Decrypt password
 ##
 function yapca_decrypt_pass() {
-  l_enc_str=${1}
+  l_enc_str="${1}"
   if [[ "$(find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
     a_cmd=(
       "enc"
@@ -512,7 +521,7 @@ function yapca_encrypt_pass() {
       fi
     fi
   else
-    die "Masterpassword file: .${SCRIPTNAME}.masterpass does not exist or has wrong permissions." "${ERR_ENCRYPT_INI}"
+    die "Masterpassword file: ${_ca_dir}/.${SCRIPTNAME}.masterpass does not exist or has wrong permissions." "${ERR_ENCRYPT_INI}"
   fi
 }
 
@@ -571,7 +580,7 @@ l_inifiles+=("${CURRENTDIR}ini/default.ini")
 l_inifiles+=("${SCRIPTPATH}default.ini")
 l_inifiles+=("${SCRIPTPATH}ini/default.ini")
 for ((i = 0; i < ${#l_inifiles[@]}; i++)); do
-  if [[ -r ${l_inifiles[$i]} ]]; then
+  if [[ -f ${l_inifiles[$i]} && -r ${l_inifiles[$i]} ]]; then
     _arg_ini="${l_inifiles[$i]}"
     break
   fi
@@ -586,6 +595,10 @@ if [[ -n ${_arg_ini} && -f ${_arg_ini} ]]; then
       if [[ ${INIVAR} == [* ]]; then
         INIVAR="${INIVAR#?}"
         INISEC="${INIVAR%%?}"
+				# this part reads only the ca and intermediate sections from ini
+				if [[ "${INISEC}" != "ca" && "${INISEC}" != "intermediate" ]]; then
+					break
+				fi
       elif [[ -n ${INIVAL} ]]; then
         ARGVAR="_${INISEC}_${INIVAR}"
         eval "ARGVAL=\$$ARGVAR"
@@ -607,14 +620,20 @@ if [[ -n ${_arg_ini} && -f ${_arg_ini} ]]; then
 fi
 
 # set defaults here if not read from ini file
-_ca_passin="${_ca_passin:-Z88TSdJphmUGrvlXnkZ7}"
+_ca_passin="${_ca_passin:=Z88TSdJphmUGrvlXnkZ7}"
 _ca_passout="${_ca_passout:=GErJenAKvT1FVQQSBWcf}"
 _ca_passcsr="${_ca_passcsr:=cNwbgwgaxMMHNVNOhC3k}"
 _intermediate_passin="${_intermediate_passin:=Z88TSdJphmUGrvlXnkZ7}"
 _intermediate_passout="${_intermediate_passout:=GErJenAKvT1FVQQSBWcf}"
 _intermediate_passcsr="${_intermediate_passcsr:=cNwbgwgaxMMHNVNOhC3k}"
+_ca_key="${_ca_key:=ca.key.pem}"
+_ca_crt="${_ca_crt:=ca.cert.pem}"
+_ca_chain="${_ca_chain:=ca-chain.cert.pem}"
 _ca_keylength="${_ca_keylength:=4096}"
 _ca_validity="${_ca_validity:=36500}"
+_intermediate_key="${_intermediate_key:=intrmediate.key.pem}"
+_intermediate_crt="${_intermediate_crt:=intermediate.cert.pem}"
+_intermediate_csr="${_intermediate_csr:=intermediate.csr.pem}"
 _intermediate_keylength="${_intermediate_keylength:=2048}"
 _intermediate_validity="${_intermediate_validity:=3650}"
 if [[ "${_ca_dir}" != '/'* ]]; then
