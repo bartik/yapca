@@ -8,5 +8,5 @@ setup() {
 }
 
 @test "can run our script" {
-    yapca.sh
+    yapca.sh -h
 }

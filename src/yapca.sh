@@ -692,3 +692,4 @@ encini)
   ;;
 esac
 umask "${SCRIPTUMASK}"
+exit 0
