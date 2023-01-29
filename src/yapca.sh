@@ -449,7 +449,12 @@ function yapca_server_csr() {
 ##
 function yapca_decrypt_pass() {
   l_enc_str="${1}"
-  if [[ "$(find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
+	# check if the password is encrypted
+	if [[ "${l_enc_str}" == txt::* ]]; then
+		# remove prefix
+		l_enc_str=${l_enc_str#?????}
+	# check if we have a master password
+  elif [[ "$(find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
     a_cmd=(
       "enc"
       "-aes-256-cbc"
@@ -466,10 +471,31 @@ function yapca_decrypt_pass() {
       # remove salt
       l_enc_str=${l_enc_str#????????????????}
       l_enc_str=${l_enc_str%????????}
-    elif [[ "${l_enc_str}" == txt::* ]]; then
-      # remove prefix
-      l_enc_str=${l_enc_str#?????}
     fi
+	# You can specify the filepath in env
+	elif [[ ! -z ${YAPCA_MASTERPASS_FILE} ]]; then
+		l_name_base=basename "${YAPCA_MASTERPASS_FILE}"
+		l_name_dir=dirname "${YAPCA_MASTERPASS_FILE}"
+		l_name_dir="$(cd "${l_name_dir}" && pwd -P)/"
+		if [[ "$(find "${l_name_dir}." ! -name . -prune -name "${l_name_base}" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
+			a_cmd=(
+				"enc"
+				"-aes-256-cbc"
+				"-pbkdf2"
+				"-base64"
+				"-d"
+				"-pass"
+				"file:${_ca_dir}/.${SCRIPTNAME}.masterpass"
+			)
+			if [[ "${l_enc_str}" == enc::* ]]; then
+				# remove prefix
+				l_enc_str=${l_enc_str#?????}
+				l_enc_str="$(echo -e "${l_enc_str}" | "${_arg_openssl}" "${a_cmd[@]}")"
+				# remove salt
+				l_enc_str=${l_enc_str#????????????????}
+				l_enc_str=${l_enc_str%????????}
+			fi
+		fi
   fi
   echo "${l_enc_str}"
 }
@@ -645,31 +671,13 @@ fi
 _ca_dir="${_ca_dir%/}"
 _intermediate_dir="${_intermediate_dir%/}"
 
-# decrypt passwords if there is master pass file
-# create the masterpass file beforehand and then
-# to encrypt the password use
-# echo "password" | openssl enc -aes256 -pbkdf2 -base64 -pass file:${_ca_dir}/.${SCRIPTNAME}.masterpass
-# paste the resulting string into the ini file
-# replace any occurences of = (equal) sign with
-# its octal code. For "password" it would be
-# U2FsdGVkX19AyHLusY4808Kwx4pnJ6nU5e96aUVvPzs\075
-if [[ "$(find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
-  a_cmd=(
-    "enc"
-    "-aes-256-cbc"
-    "-pbkdf2"
-    "-base64"
-    "-d"
-    "-pass"
-    "file:${_ca_dir}/.${SCRIPTNAME}.masterpass"
-  )
-  _ca_passin="$(yapca_decrypt_pass "${_ca_passin}")"
-  _ca_passout="$(yapca_decrypt_pass "${_ca_passout}")"
-  _ca_passcsr="$(yapca_decrypt_pass "${_ca_passcsr}")"
-  _intermediate_passin="$(yapca_decrypt_pass "${_intermediate_passin}")"
-  _intermediate_passout="$(yapca_decrypt_pass "${_intermediate_passout}")"
-  _intermediate_passcsr="$(yapca_decrypt_pass "${_intermediate_passcsr}")"
-fi
+# decode passwords if required
+_ca_passin="$(yapca_decrypt_pass "${_ca_passin}")"
+_ca_passout="$(yapca_decrypt_pass "${_ca_passout}")"
+_ca_passcsr="$(yapca_decrypt_pass "${_ca_passcsr}")"
+_intermediate_passin="$(yapca_decrypt_pass "${_intermediate_passin}")"
+_intermediate_passout="$(yapca_decrypt_pass "${_intermediate_passout}")"
+_intermediate_passcsr="$(yapca_decrypt_pass "${_intermediate_passcsr}")"
 
 umask 0077
 case "${_arg_positional}" in
