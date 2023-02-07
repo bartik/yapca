@@ -172,7 +172,8 @@ assign_positional_args() {
 
 function yapca_random_string() {
   # ensure $1 is a number
-  l_hex_digits="$(printf '%d' "${1}")"
+  local l_hex_digits
+	l_hex_digits="$(printf '%d' "${1}")"
   # generate random hex string
   printf '%8s' "$(od -An -N"${l_hex_digits}" -tx1 /dev/urandom | tr -d '[:blank:]')"
 }
@@ -422,8 +423,8 @@ function yapca_initialize_ca() {
 ## Generate server key withoud password
 ##
 function yapca_server_key() {
-  l_server_key="${1}"
-  l_server_keylength="${2}"
+  local l_server_key="${1}"
+  local l_server_keylength="${2}"
   a_cmd=(
     "genrsa"
     "-config"
@@ -440,8 +441,23 @@ function yapca_server_key() {
   chmod 400 "${_intermediate_dir}/private/${l_server_key}"
 }
 
+##
+## Create a signing request withoud password
+##
 function yapca_server_csr() {
   l_server_key="${1}"
+  a_cmd=(
+    "req"
+    "-config"
+    "${_intermediate_dir}/openssl.cnf"
+    "-new"
+    "-key"
+    "${_intermediate_dir}/private/${l_server_key}"
+    "-out"
+    "${_intermediate_dir}/csr/${l_server_csr}"
+  )
+  "${_arg_openssl}" "${a_cmd[@]}"
+  chmod 444 "${_intermediate_dir}/csr/${l_server_key}"
 }
 
 ##
@@ -449,53 +465,35 @@ function yapca_server_csr() {
 ##
 function yapca_decrypt_pass() {
   l_enc_str="${1}"
+	l_name_base=".${SCRIPTNAME}.masterpass"
+	l_name_dir="${_ca_dir}/"
+	# Check if password file name is in env
+	if [[ -n "${YAPCA_MASTERPASS_FILE}" ]]; then
+		l_name_base="$(basename "${YAPCA_MASTERPASS_FILE}")"
+		l_name_dir="$(dirname "${YAPCA_MASTERPASS_FILE}")"
+		l_name_dir="$(cd "${l_name_dir}" && pwd -P)/"
+	fi
 	# check if the password is encrypted
 	if [[ "${l_enc_str}" == txt::* ]]; then
 		# remove prefix
 		l_enc_str=${l_enc_str#?????}
 	# check if we have a master password
-  elif [[ "$(find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
-    a_cmd=(
-      "enc"
-      "-aes-256-cbc"
-      "-pbkdf2"
-      "-base64"
-      "-d"
-      "-pass"
-      "file:${_ca_dir}/.${SCRIPTNAME}.masterpass"
-    )
-    if [[ "${l_enc_str}" == enc::* ]]; then
-      # remove prefix
-      l_enc_str=${l_enc_str#?????}
-      l_enc_str="$(echo -e "${l_enc_str}" | "${_arg_openssl}" "${a_cmd[@]}")"
-      # remove salt
-      l_enc_str=${l_enc_str#????????????????}
-      l_enc_str=${l_enc_str%????????}
-    fi
-	# You can specify the filepath in env
-	elif [[ ! -z ${YAPCA_MASTERPASS_FILE} ]]; then
-		l_name_base=basename "${YAPCA_MASTERPASS_FILE}"
-		l_name_dir=dirname "${YAPCA_MASTERPASS_FILE}"
-		l_name_dir="$(cd "${l_name_dir}" && pwd -P)/"
-		if [[ "$(find "${l_name_dir}." ! -name . -prune -name "${l_name_base}" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
-			a_cmd=(
-				"enc"
-				"-aes-256-cbc"
-				"-pbkdf2"
-				"-base64"
-				"-d"
-				"-pass"
-				"file:${_ca_dir}/.${SCRIPTNAME}.masterpass"
-			)
-			if [[ "${l_enc_str}" == enc::* ]]; then
-				# remove prefix
-				l_enc_str=${l_enc_str#?????}
-				l_enc_str="$(echo -e "${l_enc_str}" | "${_arg_openssl}" "${a_cmd[@]}")"
-				# remove salt
-				l_enc_str=${l_enc_str#????????????????}
-				l_enc_str=${l_enc_str%????????}
-			fi
-		fi
+	elif [[ "$(find "${l_name_dir}." ! -name . -prune -type f -name "${l_name_base}" -perm 400)" == "${l_name_dir}./${l_name_base}" && "${l_enc_str}" == enc::* ]]; then
+		a_cmd=(
+			"enc"
+			"-aes-256-cbc"
+			"-pbkdf2"
+			"-base64"
+			"-d"
+			"-pass"
+			"file:${l_name_dir}${l_name_base}"
+		)
+		# remove prefix
+		l_enc_str=${l_enc_str#?????}
+		l_enc_str="$(echo -e "${l_enc_str}" | "${_arg_openssl}" "${a_cmd[@]}")"
+		# remove salt
+		l_enc_str=${l_enc_str#????????????????}
+		l_enc_str=${l_enc_str%????????}
   fi
   echo "${l_enc_str}"
 }
@@ -505,7 +503,15 @@ function yapca_decrypt_pass() {
 ##
 function yapca_encrypt_pass() {
   l_ini="${1}"
-  if [[ "$(find "${_ca_dir}/." ! -name . -prune -name ".${SCRIPTNAME}.masterpass" -perm 400)" == "${_ca_dir}/./.${SCRIPTNAME}.masterpass" ]]; then
+	l_name_base=".${SCRIPTNAME}.masterpass"
+	l_name_dir="${_ca_dir}/"
+	# Check if password file name is in env
+	if [[ -n "${YAPCA_MASTERPASS_FILE}" ]]; then
+		l_name_base="$(basename "${YAPCA_MASTERPASS_FILE}")"
+		l_name_dir="$(dirname "${YAPCA_MASTERPASS_FILE}")"
+		l_name_dir="$(cd "${l_name_dir}" && pwd -P)/"
+	fi
+	if [[ "$(find "${l_name_dir}." ! -name . -prune -type f -name "${l_name_base}" -perm 400)" == "${l_name_dir}./${l_name_base}" ]]; then
     a_cmd=(
       "enc"
       "-aes-256-cbc"
@@ -513,7 +519,7 @@ function yapca_encrypt_pass() {
       "-base64"
       "-A"
       "-pass"
-      "file:${_ca_dir}/.${SCRIPTNAME}.masterpass"
+			"file:${l_name_dir}${l_name_base}"
     )
     # write to ini file
     if [[ -n ${l_ini} && -f ${l_ini} ]]; then
@@ -541,13 +547,13 @@ function yapca_encrypt_pass() {
           } >>"${_arg_tmp}/encrypted.ini"
         done <"${l_ini}"
         # replace plaintext password ini with the encrypted one
-        rm -f "${l_ini}" && cp "${_arg_tmp}/encrypted.ini" "${l_ini}"
+        mv "${l_ini}" "${l_ini%.*}.bak" && cp "${_arg_tmp}/encrypted.ini" "${l_ini}"
       else
         die "File: ${l_ini} is not writable." "${ERR_ENCRYPT_INI}"
       fi
     fi
   else
-    die "Masterpassword file: ${_ca_dir}/.${SCRIPTNAME}.masterpass does not exist or has wrong permissions." "${ERR_ENCRYPT_INI}"
+    die "Masterpassword file: ${l_name_dir}${l_name_base} does not exist or has wrong permissions." "${ERR_ENCRYPT_INI}"
   fi
 }
 
@@ -687,6 +693,10 @@ init)
 encini)
   yapca_encrypt_pass "${_arg_ini}"
   ;;
+server)
+	yapca_server_key "keyname" 2048
+	yapca_server_csr "keyname"
+	;;
 *)
   die "FATAL ERROR: Unknown command" ${ERR_UNKNOWN_COMMAND}
   ;;
