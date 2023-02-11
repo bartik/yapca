@@ -14,22 +14,22 @@ setup() {
 # bats test_tags=yapca:positive,yapca:BASIC-P001
 @test "BASIC-P001: Can be run." {
 	run yapca.sh -h
-	[ "$status" -eq 0 ]
-	assert_output --partial 'parse_commandline(): exit 0'
-	refute_output --partial 'ERROR'
+	assert_success
+	assert_line --partial 'parse_commandline(): exit 0'
+	refute_line --partial 'ERROR'
 }
 
 # bats test_tags=yapca:positive,yapca:BASIC-P002
 @test "BASIC-P002: Can be run with correct help output." {
 	run yapca.sh -h
-	[ "$status" -eq 0 ]
-	assert_output --partial '-h, --help: Prints help'
-	refute_output --partial 'ERROR'
+	assert_success
+	assert_line --partial '-h, --help: Prints help'
+	refute_line --partial 'ERROR'
 }
 
 # bats test_tags=yapca:negative,yapca:BASIC-N001
 @test "BASIC-N001: Fails withoud parameters." {
 	run yapca.sh
-	[ "$status" -eq 101 ]
-	assert_output --partial 'FATAL ERROR: Not enough positional arguments - we require exactly 1'
+	assert_failure 101
+	assert_line --partial 'FATAL ERROR: Not enough positional arguments - we require exactly 1'
 }

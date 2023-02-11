@@ -25,45 +25,101 @@ teardown() {
 
 # bats test_tags=yapca:positive,yapca:ENCINI-P001
 @test "ENCINI-P001: Cleartext passwords are read correctly." {
+	rm -f "$DIR/../src/ini/yapca.ini"
+	rm -f "$DIR/../src/ini/yapca.bak"
+	cp "$DIR/../src/ini/yapca.bats" "$DIR/../src/ini/yapca.ini"
 	rm -f "${YAPCA_MASTERPASS_FILE}"
 	run yapca.sh encini
 	assert_failure 102
-	assert_output --partial 'main(): _ca_passin=txt::password'
-	assert_output --partial 'main(): _ca_passout=txt::password'
-	assert_output --partial 'main(): _ca_passcsr=txt::password'
-	assert_output --partial 'main(): _intermediate_passin=txt::password'
-	assert_output --partial 'main(): _intermediate_passout=txt::password'
-	assert_output --partial 'main(): _intermediate_passcsr=txt::password'
+	assert_line --partial 'main(): _ca_passin=txt::password'
+	assert_line --partial 'main(): _ca_passout=txt::password'
+	assert_line --partial 'main(): _ca_passcsr=txt::password'
+	assert_line --partial 'main(): _intermediate_passin=txt::password'
+	assert_line --partial 'main(): _intermediate_passout=txt::password'
+	assert_line --partial 'main(): _intermediate_passcsr=txt::password'
 }
 
 # bats test_tags=yapca:positive,yapca:ENCINI-P002
 @test "ENCINI-P002: Cleartext passwords are decoded correctly." {
+	rm -f "$DIR/../src/ini/yapca.ini"
+	rm -f "$DIR/../src/ini/yapca.bak"
+	cp "$DIR/../src/ini/yapca.bats" "$DIR/../src/ini/yapca.ini"
 	rm -f "${YAPCA_MASTERPASS_FILE}"
 	run yapca.sh encini
 	assert_failure 102
-	assert_output --partial 'yapca_decrypt_pass(): echo password'
-	assert_output --partial 'main(): _ca_passin=password'
-	assert_output --partial 'main(): _ca_passout=password'
-	assert_output --partial 'main(): _ca_passcsr=password'
-	assert_output --partial 'main(): _intermediate_passin=password'
-	assert_output --partial 'main(): _intermediate_passout=password'
-	assert_output --partial 'main(): _intermediate_passcsr=password'
+	assert_line --partial 'yapca_decrypt_pass(): echo password'
+	assert_line --partial 'main(): _ca_passin=password'
+	assert_line --partial 'main(): _ca_passout=password'
+	assert_line --partial 'main(): _ca_passcsr=password'
+	assert_line --partial 'main(): _intermediate_passin=password'
+	assert_line --partial 'main(): _intermediate_passout=password'
+	assert_line --partial 'main(): _intermediate_passcsr=password'
+}
+
+# bats test_tags=yapca:positive,yapca:ENCINI-P003
+@test "ENCINI-P003: Passwords are encrypted properly." {
+	rm -f "$DIR/../src/ini/yapca.ini"
+	rm -f "$DIR/../src/ini/yapca.bak"
+	cp "$DIR/../src/ini/yapca.bats" "$DIR/../src/ini/yapca.ini"
+	echo "password" >"${YAPCA_MASTERPASS_FILE}"
+	chmod 0400 ${YAPCA_MASTERPASS_FILE}
+	run yapca.sh encini
+	assert_success
+	assert_line --partial 'yapca_decrypt_pass(): echo password'
+	assert_line --partial 'main(): _ca_passin=password'
+	assert_line --partial 'main(): _ca_passout=password'
+	assert_line --partial 'main(): _ca_passcsr=password'
+	assert_line --partial 'main(): _intermediate_passin=password'
+	assert_line --partial 'main(): _intermediate_passout=password'
+	assert_line --partial 'main(): _intermediate_passcsr=password'
+	assert_line --partial 'main(): _intermediate_passcsr=password'
+	refute_line --regexp '^.*yapca_encrypt_pass().+ printf .%s=enc.+%s.n.*=$'
+	refute_line --partial 'ERROR'
+}
+
+# bats test_tags=yapca:positive,yapca:ENCINI-P004
+@test "ENCINI-P004: Encrypted passwords are decrypted properly." {
+	rm -f "$DIR/../src/ini/yapca.ini"
+	rm -f "$DIR/../src/ini/yapca.bak"
+	cp "$DIR/../src/ini/yapca.bats" "$DIR/../src/ini/yapca.ini"
+	echo "password" >"${YAPCA_MASTERPASS_FILE}"
+	# first run will encrypt the passwords
+	chmod 0400 ${YAPCA_MASTERPASS_FILE}
+	yapca.sh encini
+	# second run will fail but the decoding must be correct
+	run yapca.sh noop
+	assert_success
+	assert_line --partial 'yapca_decrypt_pass(): echo password'
+	assert_line --partial 'main(): _ca_passin=password'
+	assert_line --partial 'main(): _ca_passout=password'
+	assert_line --partial 'main(): _ca_passcsr=password'
+	assert_line --partial 'main(): _intermediate_passin=password'
+	assert_line --partial 'main(): _intermediate_passout=password'
+	assert_line --partial 'main(): _intermediate_passcsr=password'
+	assert_line --partial 'main(): _intermediate_passcsr=password'
+	refute_line --partial 'ERROR'
 }
 
 # bats test_tags=yapca:negative,yapca:ENCINI-N001
 @test "ENCINI-N001: Fails when password file does not exist." {
+	rm -f "$DIR/../src/ini/yapca.ini"
+	rm -f "$DIR/../src/ini/yapca.bak"
+	cp "$DIR/../src/ini/yapca.bats" "$DIR/../src/ini/yapca.ini"
 	rm -f "${YAPCA_MASTERPASS_FILE}"
 	run yapca.sh encini
 	assert_failure 102
-	assert_output --partial '.bats.masterpass does not exist or has wrong permissions.'
+	assert_line --partial '.bats.masterpass does not exist or has wrong permissions.'
 }
 
 # bats test_tags=yapca:negative,yapca:ENCINI-N002
-@test "ENCINI-N002: Fails with wrong permissions to password file." {
+@test "ENCINI-N002: Fails with wrong permissions on password file." {
+	rm -f "$DIR/../src/ini/yapca.ini"
+	rm -f "$DIR/../src/ini/yapca.bak"
+	cp "$DIR/../src/ini/yapca.bats" "$DIR/../src/ini/yapca.ini"
 	echo "password" >"${YAPCA_MASTERPASS_FILE}"
 	chmod 0444 ${YAPCA_MASTERPASS_FILE}
 	run yapca.sh encini
 	assert_failure 102
-	assert_output --partial '.bats.masterpass does not exist or has wrong permissions.'
+	assert_line --partial '.bats.masterpass does not exist or has wrong permissions.'
 }
 

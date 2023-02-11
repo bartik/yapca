@@ -697,6 +697,8 @@ server)
 	yapca_server_key "keyname" 2048
 	yapca_server_csr "keyname"
 	;;
+noop)
+	;;
 *)
   die "FATAL ERROR: Unknown command" ${ERR_UNKNOWN_COMMAND}
   ;;
