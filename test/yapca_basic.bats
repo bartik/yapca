@@ -6,7 +6,7 @@ setup() {
 	# as those will point to the bats executable's location or the preprocessed file respectively
 	DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
 	# make executables in src/ visible to PATH
-	PATH="$DIR/../src:$PATH"
+	PATH="${DIR}/../src:$PATH"
 }
 
 # bats file_tags=yapca:basic
@@ -16,7 +16,7 @@ setup() {
 	run yapca.sh -h
 	assert_success
 	assert_line --partial 'parse_commandline(): exit 0'
-	refute_line --partial 'ERROR'
+	refute_line --partial '[ERROR]:'
 }
 
 # bats test_tags=yapca:positive,yapca:BASIC-P002
@@ -24,7 +24,7 @@ setup() {
 	run yapca.sh -h
 	assert_success
 	assert_line --partial '-h, --help: Prints help'
-	refute_line --partial 'ERROR'
+	refute_line --partial '[ERROR]:'
 }
 
 # bats test_tags=yapca:negative,yapca:BASIC-N001
